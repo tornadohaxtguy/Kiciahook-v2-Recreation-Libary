@@ -3488,7 +3488,12 @@ function Library:CreateWindow(...)
             assert(type(Names) == 'table' and #Names > 0, 'AddSubTabs: expected a non-empty array of names.');
             assert(not self.SubTabs, 'AddSubTabs: this tab already has subtabs.');
 
+            assert(self == Tab, 'AddSubTabs: subtabs can only be added to a top-level tab.');
+
             local ParentTab = self;
+            ParentTab.LeftSide.Visible = false;
+            ParentTab.RightSide.Visible = false;
+
             local Pages = {};
             local Buttons = {};
             local ActiveSubTab;
