@@ -2960,6 +2960,7 @@ function Library:CreateWindow(...)
     };
 
     local Outer = Library:Create('Frame', {
+        Name = 'KiciahookMainWindow';
         AnchorPoint = Config.AnchorPoint,
         BackgroundColor3 = Color3.new(0, 0, 0);
         BorderSizePixel = 0;
@@ -2970,9 +2971,12 @@ function Library:CreateWindow(...)
         Parent = ScreenGui;
     });
 
-    -- Expose the top-level window frame so optional companion panels can
-    -- position themselves relative to the main menu.
+    -- Expose the returned window and its frame through stable library fields.
+    -- This lets companion UI (such as the optional external debug console)
+    -- locate the main window even when it only has access to Library.
     Window.Frame = Outer;
+    Library.Window = Window;
+    Library.WindowFrame = Outer;
 
     Library:MakeDraggable(Outer, 25);
 
