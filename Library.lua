@@ -2957,6 +2957,7 @@ function Library:CreateWindow(...)
 
     local Window = {
         Tabs = {};
+        TabButtons = {};
     };
 
     local Outer = Library:Create('Frame', {
@@ -3072,12 +3073,10 @@ function Library:CreateWindow(...)
             Tabboxes = {};
         };
 
-        local TabButtonWidth = Library:GetTextBounds(Name, Library.Font, 16);
-
         local TabButton = Library:Create('Frame', {
             BackgroundColor3 = Library.BackgroundColor;
             BorderColor3 = Library.OutlineColor;
-            Size = UDim2.new(0, TabButtonWidth + 8 + 4, 1, 0);
+            Size = UDim2.new(1, 0, 1, 0);
             ZIndex = 1;
             Parent = TabArea;
         });
@@ -3679,6 +3678,18 @@ function Library:CreateWindow(...)
         end;
 
         Window.Tabs[Name] = Tab;
+        table.insert(Window.TabButtons, TabButton);
+
+        -- Divide the complete main navigation bar evenly between all tabs.
+        -- Account for UIListLayout padding so the final button still fits.
+        local TabCount = #Window.TabButtons;
+        local TotalPadding = Config.TabPadding * math.max(TabCount - 1, 0);
+        local ButtonWidth = UDim2.new(1 / TabCount, -TotalPadding / TabCount, 1, 0);
+
+        for _, ExistingButton in ipairs(Window.TabButtons) do
+            ExistingButton.Size = ButtonWidth;
+        end;
+
         return Tab;
     end;
 
