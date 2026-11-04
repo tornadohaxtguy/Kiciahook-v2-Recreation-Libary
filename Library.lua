@@ -3137,6 +3137,9 @@ function Library:CreateWindow(...)
             Parent = TabFrame;
         });
 
+        Tab.LeftSide = LeftSide;
+        Tab.RightSide = RightSide;
+
         Library:Create('UIListLayout', {
             Padding = UDim.new(0, 8);
             FillDirection = Enum.FillDirection.Vertical;
@@ -3191,7 +3194,7 @@ function Library:CreateWindow(...)
                 BorderMode = Enum.BorderMode.Inset;
                 Size = UDim2.new(1, 0, 0, 507 + 2);
                 ZIndex = 2;
-                Parent = Info.Side == 1 and LeftSide or RightSide;
+                Parent = Info.Side == 1 and self.LeftSide or self.RightSide;
             });
 
             Library:AddToRegistry(BoxOuter, {
@@ -3267,17 +3270,17 @@ function Library:CreateWindow(...)
             Groupbox:AddBlank(3);
             Groupbox:Resize();
 
-            Tab.Groupboxes[Info.Name] = Groupbox;
+            self.Groupboxes[Info.Name] = Groupbox;
 
             return Groupbox;
         end;
 
         function Tab:AddLeftGroupbox(Name)
-            return Tab:AddGroupbox({ Side = 1; Name = Name; });
+            return self:AddGroupbox({ Side = 1; Name = Name; });
         end;
 
         function Tab:AddRightGroupbox(Name)
-            return Tab:AddGroupbox({ Side = 2; Name = Name; });
+            return self:AddGroupbox({ Side = 2; Name = Name; });
         end;
 
         function Tab:AddTabbox(Info)
@@ -3291,7 +3294,7 @@ function Library:CreateWindow(...)
                 BorderMode = Enum.BorderMode.Inset;
                 Size = UDim2.new(1, 0, 0, 0);
                 ZIndex = 2;
-                Parent = Info.Side == 1 and LeftSide or RightSide;
+                Parent = Info.Side == 1 and self.LeftSide or self.RightSide;
             });
 
             Library:AddToRegistry(BoxOuter, {
@@ -3466,18 +3469,195 @@ function Library:CreateWindow(...)
                 return Tab;
             end;
 
-            Tab.Tabboxes[Info.Name or ''] = Tabbox;
+            self.Tabboxes[Info.Name or ''] = Tabbox;
 
             return Tabbox;
         end;
 
         function Tab:AddLeftTabbox(Name)
-            return Tab:AddTabbox({ Name = Name, Side = 1; });
+            return self:AddTabbox({ Name = Name, Side = 1; });
         end;
 
         function Tab:AddRightTabbox(Name)
-            return Tab:AddTabbox({ Name = Name, Side = 2; });
+            return self:AddTabbox({ Name = Name, Side = 2; });
         end;
+
+        -- Creates a full-width horizontal sub-navigation bar inside this tab.
+        -- Each returned subtab behaves like a normal Linoria tab for groupboxes/tabboxes.
+        function Tab:AddSubTabs(Names)
+            assert(type(Names) == 'table' and #Names > 0, 'AddSubTabs: expected a non-empty array of names.');
+            assert(not self.SubTabs, 'AddSubTabs: this tab already has subtabs.');
+
+            assert(self == Tab, 'AddSubTabs: subtabs can only be added to a top-level tab.');
+
+            local ParentTab = self;
+            ParentTab.LeftSide.Visible = false;
+            ParentTab.RightSide.Visible = false;
+
+            local Pages = {};
+            local Buttons = {};
+            local ActiveSubTab;
+
+            local SubTabBar = Library:Create('Frame', {
+                Name = 'SubTabBar';
+                BackgroundTransparency = 1;
+                Position = UDim2.new(0, 8, 0, 2);
+                Size = UDim2.new(1, -16, 0, 22);
+                ZIndex = 4;
+                Parent = TabFrame;
+            });
+
+            Library:Create('UIListLayout', {
+                FillDirection = Enum.FillDirection.Horizontal;
+                HorizontalAlignment = Enum.HorizontalAlignment.Left;
+                SortOrder = Enum.SortOrder.LayoutOrder;
+                Parent = SubTabBar;
+            });
+
+            local function CreateSide(Parent, IsRight)
+                local Side = Library:Create('ScrollingFrame', {
+                    BackgroundTransparency = 1;
+                    BorderSizePixel = 0;
+                    Position = IsRight and UDim2.new(0.5, 5, 0, 7) or UDim2.new(0, 7, 0, 7);
+                    Size = UDim2.new(0.5, -10, 1, -14);
+                    CanvasSize = UDim2.new(0, 0, 0, 0);
+                    BottomImage = '';
+                    TopImage = '';
+                    ScrollBarThickness = 0;
+                    ZIndex = 2;
+                    Parent = Parent;
+                });
+
+                local Layout = Library:Create('UIListLayout', {
+                    Padding = UDim.new(0, 8);
+                    FillDirection = Enum.FillDirection.Vertical;
+                    SortOrder = Enum.SortOrder.LayoutOrder;
+                    HorizontalAlignment = Enum.HorizontalAlignment.Center;
+                    Parent = Side;
+                });
+
+                Layout:GetPropertyChangedSignal('AbsoluteContentSize'):Connect(function()
+                    Side.CanvasSize = UDim2.fromOffset(0, Layout.AbsoluteContentSize.Y);
+                end);
+
+                return Side;
+            end;
+
+            local function SelectSubTab(Name)
+                assert(Pages[Name], 'AddSubTabs: unknown subtab "' .. tostring(Name) .. '".');
+
+                for ExistingName, Page in next, Pages do
+                    local Selected = ExistingName == Name;
+                    local ButtonData = Buttons[ExistingName];
+
+                    Page.Frame.Visible = Selected;
+                    ButtonData.Frame.BackgroundColor3 = Selected and Library.MainColor or Library.BackgroundColor;
+                    Library.RegistryMap[ButtonData.Frame].Properties.BackgroundColor3 =
+                        Selected and 'MainColor' or 'BackgroundColor';
+                    ButtonData.Blocker.BackgroundTransparency = Selected and 0 or 1;
+                end;
+
+                ActiveSubTab = Name;
+                ParentTab.SelectedSubTab = Name;
+            end;
+
+            for Index, Name in ipairs(Names) do
+                assert(type(Name) == 'string' and #Name > 0, 'AddSubTabs: every subtab name must be a non-empty string.');
+                assert(not Pages[Name], 'AddSubTabs: duplicate subtab name "' .. Name .. '".');
+
+                local SubTabName = Name;
+
+                local PageFrame = Library:Create('Frame', {
+                    Name = SubTabName .. 'SubTabPage';
+                    BackgroundTransparency = 1;
+                    Position = UDim2.new(0, 0, 0, 28);
+                    Size = UDim2.new(1, 0, 1, -28);
+                    Visible = false;
+                    ZIndex = 2;
+                    Parent = TabFrame;
+                });
+
+                local Left = CreateSide(PageFrame, false);
+                local Right = CreateSide(PageFrame, true);
+
+                local Page = {
+                    Name = SubTabName;
+                    Frame = PageFrame;
+                    LeftSide = Left;
+                    RightSide = Right;
+                    Groupboxes = {};
+                    Tabboxes = {};
+                };
+
+                setmetatable(Page, {
+                    __index = ParentTab;
+                });
+
+                function Page:Show()
+                    SelectSubTab(SubTabName);
+                end;
+
+                Pages[SubTabName] = Page;
+
+                local Button = Library:Create('Frame', {
+                    Name = SubTabName .. 'SubTabButton';
+                    BackgroundColor3 = Library.BackgroundColor;
+                    BorderColor3 = Library.OutlineColor;
+                    Size = UDim2.new(1 / #Names, 0, 1, 0);
+                    LayoutOrder = Index;
+                    ZIndex = 5;
+                    Parent = SubTabBar;
+                });
+
+                Library:AddToRegistry(Button, {
+                    BackgroundColor3 = 'BackgroundColor';
+                    BorderColor3 = 'OutlineColor';
+                });
+
+                Library:CreateLabel({
+                    Size = UDim2.new(1, 0, 1, 0);
+                    TextSize = 14;
+                    Text = SubTabName;
+                    TextXAlignment = Enum.TextXAlignment.Center;
+                    ZIndex = 6;
+                    Parent = Button;
+                });
+
+                local Blocker = Library:Create('Frame', {
+                    BackgroundColor3 = Library.MainColor;
+                    BorderSizePixel = 0;
+                    Position = UDim2.new(0, 0, 1, 0);
+                    Size = UDim2.new(1, 0, 0, 1);
+                    BackgroundTransparency = 1;
+                    ZIndex = 7;
+                    Parent = Button;
+                });
+
+                Library:AddToRegistry(Blocker, {
+                    BackgroundColor3 = 'MainColor';
+                });
+
+                Buttons[SubTabName] = {
+                    Frame = Button;
+                    Blocker = Blocker;
+                };
+
+                Button.InputBegan:Connect(function(Input)
+                    if Input.UserInputType == Enum.UserInputType.MouseButton1
+                        and not Library:MouseIsOverOpenedFrame() then
+                        SelectSubTab(SubTabName);
+                    end;
+                end);
+            end;
+
+            SelectSubTab(Names[1]);
+
+            ParentTab.SubTabs = Pages;
+            ParentTab.SubTabBar = SubTabBar;
+
+            return Pages;
+        end;
+
 
         TabButton.InputBegan:Connect(function(Input)
             if Input.UserInputType == Enum.UserInputType.MouseButton1 then
