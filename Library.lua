@@ -2970,6 +2970,10 @@ function Library:CreateWindow(...)
         Parent = ScreenGui;
     });
 
+    -- Expose the top-level window frame so optional companion panels can
+    -- position themselves relative to the main menu.
+    Window.Frame = Outer;
+
     Library:MakeDraggable(Outer, 25);
 
     local Inner = Library:Create('Frame', {
