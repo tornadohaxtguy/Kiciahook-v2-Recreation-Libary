@@ -2060,8 +2060,19 @@ do
             Fill.BorderColor3 = Library.AccentColorDark;
         end;
 
+        -- Slider fill width must follow the actual rendered width of its
+        -- track. A fixed 232px value overflows groupboxes in compact windows.
+        local function UpdateSliderMaxSize()
+            local AvailableWidth = SliderInner.AbsoluteSize.X
+            if AvailableWidth > 0 then
+                Slider.MaxSize = math.max(1, math.floor(AvailableWidth))
+            end
+        end
+
         function Slider:Display()
             local Suffix = Info.Suffix or '';
+
+            UpdateSliderMaxSize()
 
             if Info.Compact then
                 DisplayLabel.Text = Info.Text .. ': ' .. Slider.Value .. Suffix
@@ -2071,10 +2082,14 @@ do
                 DisplayLabel.Text = string.format('%s/%s', Slider.Value .. Suffix, Slider.Max .. Suffix);
             end
 
-            local X = math.ceil(Library:MapValue(Slider.Value, Slider.Min, Slider.Max, 0, Slider.MaxSize));
+            local X = math.clamp(
+                math.ceil(Library:MapValue(Slider.Value, Slider.Min, Slider.Max, 0, Slider.MaxSize)),
+                0,
+                Slider.MaxSize
+            )
             Fill.Size = UDim2.new(0, X, 1, 0);
 
-            HideBorderRight.Visible = not (X == Slider.MaxSize or X == 0);
+            HideBorderRight.Visible = not (X >= Slider.MaxSize or X == 0);
         end;
 
         function Slider:OnChanged(Func)
@@ -2092,6 +2107,8 @@ do
         end;
 
         function Slider:GetValueFromXOffset(X)
+            UpdateSliderMaxSize()
+            X = math.clamp(X, 0, Slider.MaxSize)
             return Round(Library:MapValue(X, 0, Slider.MaxSize, Slider.Min, Slider.Max));
         end;
 
@@ -2113,6 +2130,7 @@ do
 
         SliderInner.InputBegan:Connect(function(Input)
             if Input.UserInputType == Enum.UserInputType.MouseButton1 and not Library:MouseIsOverOpenedFrame() then
+                UpdateSliderMaxSize()
                 local mPos = Mouse.X;
                 local gPos = Fill.Size.X.Offset;
                 local Diff = mPos - (Fill.AbsolutePosition.X + gPos);
@@ -2138,6 +2156,12 @@ do
                 Library:AttemptSave();
             end;
         end);
+
+        -- Keep the track width synchronized if the window or groupbox is resized.
+        SliderInner:GetPropertyChangedSignal('AbsoluteSize'):Connect(function()
+            UpdateSliderMaxSize()
+            Slider:Display()
+        end)
 
         Slider:Display();
         Groupbox:AddBlank(Info.BlankSize or 6);
