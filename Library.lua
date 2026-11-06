@@ -3211,6 +3211,51 @@ function Library:CreateWindow(...)
             TabFrame.Visible = false;
         end;
 
+        -- Public references and visibility control for external UI integrations.
+        Tab.Button = TabButton;
+        Tab.Frame = TabFrame;
+
+        function Tab:SetVisible(Visible)
+            Visible = (Visible == true);
+            TabButton.Visible = Visible;
+
+            -- Do not leave the window on a page whose navigation button is hidden.
+            if not Visible and TabFrame.Visible then
+                local ReplacementFound = false;
+
+                for _, OtherTab in next, Window.Tabs do
+                    if OtherTab ~= Tab and OtherTab.Button and OtherTab.Button.Visible then
+                        OtherTab:ShowTab();
+                        ReplacementFound = true;
+                        break;
+                    end;
+                end;
+
+                if not ReplacementFound then
+                    Tab:HideTab();
+                end;
+            end;
+
+            -- Recalculate widths using visible tabs only, preserving the full-width nav.
+            local VisibleButtonCount = 0;
+            for _, ExistingButton in ipairs(Window.TabButtons) do
+                if ExistingButton.Visible then
+                    VisibleButtonCount = VisibleButtonCount + 1;
+                end;
+            end;
+
+            if VisibleButtonCount > 0 then
+                local TotalPadding = Config.TabPadding * math.max(VisibleButtonCount - 1, 0);
+                local ButtonWidth = UDim2.new(1 / VisibleButtonCount, -TotalPadding / VisibleButtonCount, 1, 0);
+
+                for _, ExistingButton in ipairs(Window.TabButtons) do
+                    if ExistingButton.Visible then
+                        ExistingButton.Size = ButtonWidth;
+                    end;
+                end;
+            end;
+        end;
+
         function Tab:SetLayoutOrder(Position)
             TabButton.LayoutOrder = Position;
             TabListLayout:ApplyLayout();
